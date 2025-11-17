@@ -1,6 +1,9 @@
-streamlit
-pandas
+xgboost==1.7.6
 numpy
+pandas
 scikit-learn
+streamlit
+plotly
 joblib
-Pillow
+pillow
+

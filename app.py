@@ -51,6 +51,7 @@ def load_or_train_model():
         X = df.drop("MedHouseVal", axis=1)
         y = df["MedHouseVal"]
 
+        # Model
         model = xgb.XGBRegressor(
             n_estimators=200,
             learning_rate=0.1,
@@ -87,14 +88,17 @@ if menu == "🏡 Predict Price":
     with col1:
         MedInc = st.number_input("Median Income (10k USD)", 1.0, 20.0, 5.0)
         HouseAge = st.number_input("House Age", 1, 60, 20)
-        AveRooms = st.number_input("Average Rooms", 1.0, 10.0, 5.0)
-    with col2:
-        AveBedrms = st.number_input("Average Bedrooms", 1.0, 5.0, 1.5)
-        Population = st.number_input("Population", 1, 50000, 1500)
-        Latitude = st.number_input("Latitude", 30.0, 45.0, 35.0)
-        Longitude = st.number_input("Longitude", -125.0, -110.0, -120.0)
+        AveRooms = st.number_input("Average Rooms", 1.0, 15.0, 5.0)
+        AveBedrms = st.number_input("Average Bedrooms", 1.0, 7.0, 2.0)
 
-    user_input = np.array([[MedInc, HouseAge, AveRooms, AveBedrms, Population, Latitude, Longitude]])
+    with col2:
+        Population = st.number_input("Population", 1, 50000, 1500)
+        AveOccup = st.number_input("Average Occupancy", 1.0, 10.0, 3.0)
+        Latitude = st.number_input("Latitude", 32.0, 42.0, 35.0)
+        Longitude = st.number_input("Longitude", -125.0, -114.0, -120.0)
+
+    # FIX: Now 8 features (matches model)
+    user_input = np.array([[MedInc, HouseAge, AveRooms, AveBedrms, Population, AveOccup, Latitude, Longitude]])
 
     if st.button("🔍 Predict Price"):
         prediction = model.predict(user_input)[0]
@@ -108,10 +112,12 @@ if menu == "🏡 Predict Price":
             "AveRooms": AveRooms,
             "AveBedrms": AveBedrms,
             "Population": Population,
+            "AveOccup": AveOccup,
             "Latitude": Latitude,
             "Longitude": Longitude,
             "PredictedPrice": prediction * 100000
         }])
+
         if os.path.exists(history_file):
             entry.to_csv(history_file, mode="a", header=False, index=False)
         else:
@@ -137,6 +143,8 @@ elif menu == "📈 Prediction History":
 
         csv = df_history.to_csv(index=False).encode()
         st.download_button("📥 Download CSV", data=csv, file_name="prediction_history.csv", mime="text/csv")
+    else:
+        st.info("No predictions yet.")
 
 # -----------------------------
 # PAGE: Map View
@@ -144,9 +152,12 @@ elif menu == "📈 Prediction History":
 elif menu == "🗺 Map View":
     st.header("🗺 Map of Predicted Prices")
     history_file = "history.csv"
+
     if os.path.exists(history_file):
         df_history = pd.read_csv(history_file)
+
         st.map(df_history[['Latitude','Longitude']])
+
         fig = px.scatter_mapbox(
             df_history,
             lat="Latitude",
@@ -159,7 +170,7 @@ elif menu == "🗺 Map View":
         )
         st.plotly_chart(fig, use_container_width=True)
     else:
-        st.info("No predictions yet. Make a prediction first!")
+        st.info("No predictions yet.")
 
 # -----------------------------
 # PAGE: Dashboard
@@ -167,39 +178,46 @@ elif menu == "🗺 Map View":
 elif menu == "📉 Dashboard":
     st.header("📉 Interactive Dashboard")
     history_file = "history.csv"
+
     if os.path.exists(history_file):
         df = pd.read_csv(history_file)
-        # Filters
+
         st.sidebar.subheader("Filters")
         price_range = st.sidebar.slider("Predicted Price Range", float(df.PredictedPrice.min()), float(df.PredictedPrice.max()), (float(df.PredictedPrice.min()), float(df.PredictedPrice.max())))
         room_range = st.sidebar.slider("Number of Rooms", int(df.AveRooms.min()), int(df.AveRooms.max()), (int(df.AveRooms.min()), int(df.AveRooms.max())))
         income_range = st.sidebar.slider("Median Income (10k USD)", float(df.MedInc.min()), float(df.MedInc.max()), (float(df.MedInc.min()), float(df.MedInc.max())))
+
         filtered = df[
             (df.PredictedPrice >= price_range[0]) & (df.PredictedPrice <= price_range[1]) &
             (df.AveRooms >= room_range[0]) & (df.AveRooms <= room_range[1]) &
             (df.MedInc >= income_range[0]) & (df.MedInc <= income_range[1])
         ]
+
         st.dataframe(filtered)
+
         fig1 = px.histogram(filtered, x="PredictedPrice", nbins=30, title="Predicted Price Distribution")
         st.plotly_chart(fig1, use_container_width=True)
+
         fig2 = px.scatter(filtered, x="AveRooms", y="PredictedPrice", color="MedInc", size="Population", title="Predicted Price vs Rooms")
         st.plotly_chart(fig2, use_container_width=True)
     else:
-        st.info("No predictions yet. Make some predictions first!")
+        st.info("No predictions yet.")
 
 # -----------------------------
 # PAGE: Predicted vs Actual
 # -----------------------------
 elif menu == "📊 Predicted vs Actual":
     st.header("📊 Predicted vs Actual Values")
+
     y_pred = model.predict(X_orig)
     df_plot = pd.DataFrame({"Actual": y_orig * 100000, "Predicted": y_pred * 100000})
+
     fig = px.scatter(df_plot, x="Actual", y="Predicted", title="Predicted vs Actual Prices", trendline="ols")
     st.plotly_chart(fig, use_container_width=True)
 
-    # Metrics
     mse = mean_squared_error(df_plot.Actual, df_plot.Predicted)
     r2 = r2_score(df_plot.Actual, df_plot.Predicted)
+
     st.metric("Mean Squared Error", f"{mse:,.2f}")
     st.metric("R² Score", f"{r2:.4f}")
 
@@ -210,11 +228,13 @@ elif menu == "ℹ️ About App":
     st.header("ℹ️ About This App")
     st.write("""
     Production-ready app predicting house prices using **XGBoost Regression**.
-    - Interactive dashboard with filters
-    - Predicted vs Actual plot
-    - MSE & R² metrics
-    - Live map of predictions
-    - Download prediction history
-    - Dark mode & modern UI
+
+    Features:
+    - Interactive dashboard with filters  
+    - Predicted vs Actual plot  
+    - MSE & R² metrics  
+    - Live map of predictions  
+    - Download prediction history  
+    - Dark mode & modern UI  
     - Saved model (no retraining needed)
     """)

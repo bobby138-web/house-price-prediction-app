@@ -31,7 +31,7 @@ st.markdown("""
 # -----------------------------
 # ASSETS
 # -----------------------------
-st.sidebar.image("assets/house.png", width=120)
+st.sidebar.image("assets/pexels-pixabay-280229.jpg", width=120)
 st.sidebar.title("🏠 House Price App")
 
 # -----------------------------
